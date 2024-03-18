@@ -1,0 +1,181 @@
+/*
+Copyright © 2024 NAME HERE <EMAIL ADDRESS>
+
+*/
+package cmd
+
+import (
+	"fmt"
+	"errors"
+	"net/http"
+	"regexp"
+	"encoding/json"
+	"io"
+	"log"
+	"bytes"
+
+
+	"github.com/spf13/cobra"
+	"github.com/manifoldco/promptui"
+)
+
+// addCmd represents the add command
+var addCmd = &cobra.Command{
+	Use:   "add",
+	Short: "Add an album to rating database",
+	Long: `
+Use this command to add an album to the rating database.
+It will first prompt you to enter a the uri of a spotify album
+	- Then checks if it is actually an album URI
+	- Then strips the URI to an ID
+	- Then it will display the album properties and allow you to confirm
+Then it will ask you for a rating
+	- Then checks if it is an integer 0-10
+Then it will push to mongo database.
+`,
+	Run: func(cmd *cobra.Command, args []string) {
+		addAlbum()
+	},
+}
+
+func addAlbum() {
+	// get the album uri
+	// get the album data
+	// get the rating
+	// push to mongo
+}
+
+func getAlbumURI() {
+	pattern := `^spotify:album:[A-Za-z0-9]{22}$`
+
+	re := regexp.MustCompile(pattern)
+
+	validate := func(input string) error {
+		if re.MatchString(input) == false {
+			return errors.New("Invalid uri")
+		}	
+		return nil
+	}
+
+	prompt := promptui.Prompt{
+		Label:    "Enter spotify URI",
+		Validate: validate,
+	}
+
+	result, err := prompt.Run()
+
+	id := result[14:]
+
+	if err != nil {
+		fmt.Printf("Prompt failed %v\n", err)
+		return
+	}
+
+	//fmt.Printf("The spotify ID is: %#q", id)
+	albumToAdd := getAlbumInformation(id)
+	fmt.Printf("\n%v by %v\n", albumToAdd.AlbumName, albumToAdd.ArtistName)
+	confirm := promptui.Prompt{
+		Label: "Is this the album you would like to rate?",
+		IsConfirm: true,
+	}
+
+	confirmation, err := confirm.Run()
+
+	if err != nil {
+		fmt.Printf("Prompt failed %v\n", err)
+		return
+	}
+
+	if confirmation == "y"{
+		fmt.Printf("\n Okay time to rate")
+	}
+}
+
+type AccessTokenResponse struct {
+	Token string `json:"access_token"`
+}
+
+func getAccessToken(ch chan<- string){
+	resp, err := http.Post("http://localhost:5000/api/spotify/key", "application/json", nil)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	var responseObj AccessTokenResponse
+	json.Unmarshal(body, &responseObj)
+
+	accessToken := responseObj.Token
+
+	fmt.Printf("\nAccess token: %v\n", accessToken)
+	ch<- accessToken
+}
+
+type Album struct {
+	AlbumName string `json:"albumName"`
+	ArtistName string `json:"artistName"`
+	SpotifyURI string `json:"spotifyURI"`
+	Image string `json:"img"`
+	Link string `json:"link"`
+}
+
+type SpotifyAlbumRequest struct {
+	ID string `json:"spotifyURI"`
+	Token string `json:"access_token"`
+}
+
+func getAlbumInformation(id string) Album {
+	ch := make(chan string)
+	go getAccessToken(ch)
+	accessToken := <- ch
+
+	// now we get the album, so first we should make an album struct
+	request := SpotifyAlbumRequest{ID: id, Token: accessToken}
+	data, err := json.Marshal(request)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	resp, err := http.Post("http://localhost:5000/api/spotify/", "application/json", 
+		bytes.NewBuffer(data))
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	var responseObj Album
+	json.Unmarshal(body, &responseObj)
+
+	//albName := responseObj.AlbumName
+
+	//fmt.Printf("\nAlbum Name: %v\nArtist Name: %v\nSpotify ID: %v\nImage link: %v\nURL: %v\n", responseObj.AlbumName, responseObj.ArtistName, responseObj.SpotifyURI, responseObj.Image, responseObj.Link)
+
+	return responseObj
+}
+
+
+
+
+func init() {
+	rootCmd.AddCommand(addCmd)
+
+	// Here you will define your flags and configuration settings.
+
+	// Cobra supports Persistent Flags which will work for this command
+	// and all subcommands, e.g.:
+	// addCmd.PersistentFlags().String("foo", "", "A help for foo")
+
+	// Cobra supports local flags which will only run when this command
+	// is called directly, e.g.:
+	// addCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+}

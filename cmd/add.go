@@ -14,10 +14,12 @@ import (
 	"log"
 	"bytes"
 	"strconv"
+	"os"
 
 
 	"github.com/spf13/cobra"
 	"github.com/manifoldco/promptui"
+	"github.com/joho/godotenv"
 )
 
 // addCmd represents the add command
@@ -66,6 +68,11 @@ func addAlbum() {
 //spotify:album:0HmKhR7Umt3ACs52ZLnKyK
 
 func pushToMongo(albumP *Album, rating int, id string) error {
+	err := godotenv.Load()
+	if err != nil {
+	  log.Fatal("Error loading .env file")
+	}
+	MONGO := os.Getenv("MONGO")
 	album := *albumP
 	combinedData := map[string]interface{}{
 		"albumName":  album.AlbumName,
@@ -83,7 +90,7 @@ func pushToMongo(albumP *Album, rating int, id string) error {
 	}
 	//fmt.Println("JSON Data:", string(data))
 
-	resp, err := http.Post("https://personal-site-production-2d9f.up.railway.app/api/album/", "application/json", bytes.NewBuffer(data))
+	resp, err := http.Post(MONGO, "application/json", bytes.NewBuffer(data))
 	if err != nil {
 		return err
 	}
@@ -149,7 +156,12 @@ type AccessTokenResponse struct {
 }
 
 func getAccessToken(ch chan<- string){
-	resp, err := http.Post("https://personal-site-production-2d9f.up.railway.app/api/spotify/key", "application/json", nil)
+	err := godotenv.Load()
+	if err != nil {
+	  log.Fatal("Error loading .env file")
+	}
+	ACCESS := os.Getenv("ACCESS")
+	resp, err := http.Post(ACCESS, "application/json", nil)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -181,6 +193,11 @@ type SpotifyAlbumRequest struct {
 }
 
 func getAlbumAPICall(id string) Album {
+	err := godotenv.Load()
+	if err != nil {
+	  log.Fatal("Error loading .env file")
+	}
+	ALBUM := os.Getenv("ALBUM")
 	ch := make(chan string)
 	go getAccessToken(ch)
 	accessToken := <- ch
@@ -192,7 +209,7 @@ func getAlbumAPICall(id string) Album {
 		log.Fatalln(err)
 	}
 
-	resp, err := http.Post("https://personal-site-production-2d9f.up.railway.app/api/spotify/", "application/json", 
+	resp, err := http.Post(ALBUM, "application/json", 
 		bytes.NewBuffer(data))
 	if err != nil {
 		log.Fatalln(err)

@@ -1,0 +1,1 @@
+Command Line Interface that allows me to update this list of albums by only providing a link to the album on spotify, and a rating 1-10. All information on the album (Album art, name, and artist name) is pulled from the Spotify API. This then makes a POST call to MongoDB with this information and my rating. My webpage then pulls this information and displays it.
